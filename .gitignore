@@ -1,0 +1,29 @@
+# macOS / Xcode
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcshareddata/swiftpm/
+*.ipa
+*.xcarchive
+*.dSYM.zip
+
+# Local tooling settings (never commit secrets: the App Store Connect key stays in
+# ~/.planetkeyboard-release.env)
+.claude/
+.env
+*.env
+*.p8
+*.p12
+*.mobileprovision
+
+# Chinese engine: third-party sources are downloaded by Tools/rime/fetch_sources.sh, and the
+# binaries below are rebuilt from them by Tools/rime/build_librime.sh and build_data.sh.
+Vendor/
+KeyboardExtension/Frameworks/Rime.xcframework/
+KeyboardExtension/Resources/RimeData/
+
+# Python
+__pycache__/
+*.pyc

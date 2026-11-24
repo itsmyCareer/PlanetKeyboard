@@ -1,0 +1,104 @@
+name: PlanetKeyboard
+options:
+  bundleIdPrefix: com.planetkeyboard
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: "2F737PV5X6"
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+
+targets:
+  PlanetKeyboard:
+    type: application
+    platform: iOS
+    sources:
+      - path: PlanetKeyboard
+        excludes:
+          - "**/*.entitlements"
+          - "**/*.md"
+      - path: Shared
+        excludes:
+          - "**/*.md"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.planetkeyboard.PlanetKeyboard
+        INFOPLIST_FILE: PlanetKeyboard/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: PlanetKeyboard/PlanetKeyboard.entitlements
+    dependencies:
+      - target: KeyboardExtension
+
+  KeyboardExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: KeyboardExtension
+        excludes:
+          - "**/*.entitlements"
+          - "**/*.md"
+          - "Resources/**"
+          - "Frameworks/**"
+      - path: KeyboardExtension/Resources/RimeData
+        type: folder
+        buildPhase: resources
+      - path: KeyboardExtension/Resources/emoji.db
+        buildPhase: resources
+      - path: KeyboardExtension/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Shared
+        excludes:
+          - "**/*.md"
+    dependencies:
+      - framework: KeyboardExtension/Frameworks/Rime.xcframework
+        embed: false
+    settings:
+      base:
+        OTHER_LDFLAGS: "-lc++"
+        PRODUCT_BUNDLE_IDENTIFIER: com.planetkeyboard.PlanetKeyboard.Keyboard
+        CODE_SIGN_ENTITLEMENTS: KeyboardExtension/KeyboardExtension.entitlements
+        INFOPLIST_FILE: KeyboardExtension/Resources/Info.plist
+        SKIP_INSTALL: true
+  PlanetKeyboardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+        excludes:
+          - "**/*.md"
+      - path: Shared
+        excludes:
+          - "**/*.md"
+      - path: KeyboardExtension/InputEngines
+        excludes:
+          - "**/*.md"
+      - path: KeyboardExtension/Layouts
+        excludes:
+          - "**/*.md"
+      - path: KeyboardExtension/Theme
+        excludes:
+          - "**/*.md"
+      - path: KeyboardExtension/ViewModels
+        excludes:
+          - "**/*.md"
+      - path: KeyboardExtension/Resources/RimeData
+        type: folder
+        buildPhase: resources
+      - path: KeyboardExtension/Resources/emoji.db
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.planetkeyboard.PlanetKeyboardTests
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_LDFLAGS: "-lc++"
+    dependencies:
+      - target: PlanetKeyboard
+      - framework: KeyboardExtension/Frameworks/Rime.xcframework
+        embed: false

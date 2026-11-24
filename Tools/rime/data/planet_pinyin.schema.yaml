@@ -1,0 +1,77 @@
+# PlanetKeyboard Pinyin schema, derived from rime-ice (雾凇拼音, GPL-3.0) without Lua/OpenCC
+# extras: the keyboard UI handles punctuation, emoji and English itself.
+schema:
+  schema_id: planet_pinyin
+  name: Planet Pinyin
+  version: "1.0"
+  description: Full pinyin and abbreviations (nzzsm → 你在做什么), whole-sentence input.
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中, Ａ ]
+
+engine:
+  processors:
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - script_translator
+    - table_translator@custom_phrase
+  filters:
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  initials: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+  algebra:
+    - erase/^hm$/
+    - erase/^m$/
+    - erase/^n$/
+    - erase/^ng$/
+    - abbrev/^([a-z]).+$/$1/     # abbreviations: n → ni, z → zai ...
+    - abbrev/^([zcs]h).+$/$1/    # zh ch sh as one initial
+    - derive/^([nl])ve$/$1ue/
+    - derive/^([jqxy])u/$1v/
+    - derive/^([nl])ue$/$1ve/
+    - derive/^([jqxy])v/$1u/
+
+translator:
+  dictionary: planet_pinyin
+  enable_word_completion: true
+  enable_user_dict: true
+  initial_quality: 1.2
+  contextual_suggestions: true
+  max_homophones: 7
+  max_homographs: 7
+  preedit_format:
+    - xform/([jqxy])v/$1u/
+    - xform/([nl])v/$1v/
+    - xform/([nl])ue/$1ve/
+
+grammar:
+  language: zh-hans-t-essay-bgc-compact
+  collocation_max_length: 2
+  collocation_min_length: 2
+
+# Everyday chat words pinned for their abbreviations (nh → 你好), generated from
+# Tools/rime/chat_phrases.txt by Tools/rime/make_custom_phrase.py.
+custom_phrase:
+  dictionary: ""
+  user_dict: planet_custom_phrase
+  db_class: stabledb
+  enable_completion: false
+  enable_sentence: false
+  initial_quality: 99
+
+editor:
+  bindings:
+    space: confirm
+    Return: commit_raw_input
+    BackSpace: revert

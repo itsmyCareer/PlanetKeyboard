@@ -1,0 +1,13 @@
+# PlanetKeyboard Pinyin dictionary = the rime-ice (雾凇拼音) word lists, GPL-3.0.
+# https://github.com/iDvel/rime-ice — copied into the build by Tools/rime/build_data.sh.
+---
+name: planet_pinyin
+version: "1.0"
+sort: by_weight
+import_tables:
+  - cn_dicts/8105     # characters
+  - cn_dicts/base     # base words
+  - cn_dicts/ext      # extended words
+  - cn_dicts/tencent  # Tencent word list (large)
+  - cn_dicts/others
+...

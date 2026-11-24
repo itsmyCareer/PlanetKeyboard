@@ -1,0 +1,8 @@
+# PlanetKeyboard Rime configuration (one schema, no hotkeys: the keyboard UI drives Rime).
+config_version: '1.0'
+
+schema_list:
+  - schema: planet_pinyin
+
+menu:
+  page_size: 9

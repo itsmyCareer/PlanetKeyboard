@@ -124,12 +124,25 @@ final class LayoutTests: XCTestCase {
         XCTAssertGreaterThan(ko[0].width, en[0].width)
     }
 
-    func testHeightIsTheSameForEveryPage() {
-        // Switching language/page must never resize the keyboard.
-        let m = KeyboardMetrics.portrait
+    func testDefaultSizeIsTheSystemKeyboard() {
+        // iOS 26 iPhone portrait: 45 pt keys, 56 pt from row to row.
+        let m = KeyboardMetrics.make(landscape: false, scale: 1)
+        XCTAssertEqual(m, .portrait)
+        XCTAssertEqual(m.keyHeight, 45)
+        XCTAssertEqual(m.keyHeight + m.rowGap, 56)
         let keys: CGFloat = m.keyHeight * 4 + m.rowGap * 3
         XCTAssertEqual(m.totalHeight, m.barHeight + m.topPadding + keys + m.bottomPadding)
-        XCTAssertEqual(m.totalHeight, 257)
+    }
+
+    func testKeySizeSettingScalesHeightsOnly() {
+        let big = KeyboardMetrics.make(landscape: false, scale: 1.2)
+        XCTAssertEqual(big.keyHeight, 54)
+        XCTAssertGreaterThan(big.totalHeight, KeyboardMetrics.portrait.totalHeight)
+        XCTAssertEqual(big.keyGap, KeyboardMetrics.portrait.keyGap)
+        XCTAssertEqual(big.barHeight, KeyboardMetrics.portrait.barHeight)
+        // Out-of-range values are clamped.
+        XCTAssertEqual(KeyboardMetrics.make(landscape: false, scale: 3),
+                       KeyboardMetrics.make(landscape: false, scale: AppConstants.keyScaleRange.upperBound))
     }
 }
 

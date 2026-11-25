@@ -17,6 +17,16 @@ python3 -I Tools/build_emoji_db.py --sources Tools/sources/emoji --output Keyboa
 
 Slang keywords (ㅋㅋ, lol, 哈哈 ...) live in `SLANG` inside `build_emoji_db.py`.
 
+## Korean 받침 / 쌍자음 table (`KeyboardExtension/Resources/hangul_pairs.tsv`)
+
+On 단모음, 바 + ㄱㄱ + ㅜ can be 박구 or 바꾸. The keyboard decides from word statistics, not tap
+speed. The table is built from the FrequencyWords Korean list (CC BY-SA 4.0), which
+`Tools/rime/fetch_sources.sh` downloads into `Vendor/frequencywords`:
+
+```bash
+python3 -I Tools/build_hangul_pairs.py
+```
+
 ## License notices
 
 ```bash

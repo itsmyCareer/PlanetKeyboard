@@ -46,4 +46,10 @@ if [ ! -f "$V/models/zh-hans-t-essay-bgc-compact.gram" ]; then
 fi
 echo "$GRAM_SHA256  $V/models/zh-hans-t-essay-bgc-compact.gram" | shasum -a 256 -c -
 curl -fsL https://raw.githubusercontent.com/lotem/rime-octagram-data/master/LICENSE -o "$V/models/LICENSE"
+# Korean word frequencies for Tools/build_hangul_pairs.py (CC BY-SA 4.0).
+FREQ_COMMIT=525f9b560de45753a5ea01069454e72e9aa541c6
+mkdir -p "$V/frequencywords"
+curl -fsL "https://raw.githubusercontent.com/hermitdave/FrequencyWords/$FREQ_COMMIT/content/2018/ko/ko_full.txt" \
+  -o "$V/frequencywords/ko_full.txt"
+curl -fsL "https://raw.githubusercontent.com/hermitdave/FrequencyWords/$FREQ_COMMIT/LICENSE" -o "$V/frequencywords/LICENSE"
 echo "sources ready in $V"

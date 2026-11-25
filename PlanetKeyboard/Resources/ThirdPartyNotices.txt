@@ -522,6 +522,17 @@ authorization of the copyright holder.
 SPDX-License-Identifier: Unicode-3.0
 
 ============================================================
+FrequencyWords (Korean word frequencies)
+https://github.com/hermitdave/FrequencyWords
+Used for: Statistics that decide 받침 vs 쌍자음 on the Korean 단모음 keyboard (hangul_pairs.tsv)
+============================================================
+
+Word list ko_full.txt (2018, from OpenSubtitles) by Hermit Dave, licensed under the Creative
+Commons Attribution-ShareAlike 4.0 International License
+(https://creativecommons.org/licenses/by-sa/4.0/). Changed: reduced to counts of syllable
+pairs by Tools/build_hangul_pairs.py; the resulting table is under the same license.
+
+============================================================
 GNU General Public License v3.0
 https://www.gnu.org/licenses/gpl-3.0.html
 Used for: This app and rime-ice

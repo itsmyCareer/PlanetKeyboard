@@ -51,6 +51,8 @@ targets:
         buildPhase: resources
       - path: KeyboardExtension/Resources/emoji.db
         buildPhase: resources
+      - path: KeyboardExtension/Resources/hangul_pairs.tsv
+        buildPhase: resources
       - path: KeyboardExtension/Resources/PrivacyInfo.xcprivacy
         buildPhase: resources
       - path: Shared
@@ -92,6 +94,8 @@ targets:
         type: folder
         buildPhase: resources
       - path: KeyboardExtension/Resources/emoji.db
+        buildPhase: resources
+      - path: KeyboardExtension/Resources/hangul_pairs.tsv
         buildPhase: resources
     settings:
       base:

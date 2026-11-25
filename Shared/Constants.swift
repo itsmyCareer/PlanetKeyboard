@@ -24,7 +24,13 @@ enum AppConstants {
         static let pairedLanguageMode = "pairedLanguageMode"
         /// Korean or English: what the 한/中 toggle returns to (paired mode).
         static let baseLanguage = "baseLanguage"
+        /// Key height multipliers (1 = iPhone system keyboard): Korean, and English & Chinese.
+        static let koreanKeyScale = "koreanKeyScale"
+        static let latinKeyScale = "latinKeyScale"
     }
+
+    /// Allowed key size settings (1 = the iPhone system keyboard).
+    static let keyScaleRange: ClosedRange<Double> = 0.85...1.3
 }
 
 // MARK: - KeyCode

@@ -143,4 +143,5 @@ These constraints are non-negotiable and must be respected in every code change 
 |---|---|---|
 | 2026-04-17 | Created | Initial project architecture documentation generated from planned structure. |
 | 2026-11-24 | Chinese engine | Switched Pinyin to librime + rime-ice + octagram (GPL-3.0 app). |
+| 2026-11-25 | Korean / size | 단모음 doubling decided by word statistics (FrequencyWords, CC BY-SA 4.0), not tap speed; key size settings per language. |
 | 2026-11-25 | Open source | Public repo https://github.com/itsmyCareer/PlanetKeyboard; Vendor/ and Rime binaries are git-ignored (Tools/rime/fetch_sources.sh). Paired 한/EN globe mode, Chinese shift. |

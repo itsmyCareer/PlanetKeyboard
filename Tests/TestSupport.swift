@@ -45,6 +45,12 @@ final class HangulHarness {
         }
     }
 
+    /// The 받침/쌍자음 alternative in the suggestion bar was tapped.
+    func swap() {
+        guard case .update(let commit, let composing)? = engine.swapAmbiguity() else { return }
+        inline.apply(commit: commit, composing: composing, to: doc)
+    }
+
     /// What the controller does on selectionDidChange / textDidChange.
     func hostChanged() {
         guard inline.isActive, !inline.isInSync(with: doc) else { return }

@@ -2,15 +2,18 @@ import Foundation
 
 /// 단모음(Danmoeum) Hangul composer.
 ///
-/// Rules:
-/// - Same consonant tapped twice quickly → 쌍자음 (ㄱㄱ→ㄲ, ㅂㅂ→ㅃ ...).
-/// - Same vowel tapped twice → 이중모음 (ㅏㅏ→ㅑ, ㅐㅐ→ㅒ ...). Inside a syllable there is no
-///   time limit because the result is never ambiguous.
-/// - 받침 + same consonant (학 + ㄱ) is ambiguous (학교 / 하꾜 / 밖). It is resolved by the
-///   next key: a vowel asks the lexicon + timing, anything else keeps a doubled 받침 (있, 밖).
+/// Rules (tap speed never matters, except for a lone vowel such as ㅜㅜ):
+/// - Same consonant twice at the start of a syllable: 쌍자음 if a vowel follows (ㄱㄱㅏ → 까),
+///   otherwise the two letters stay as typed (ㄱㄱ, ㅂㅂ, ㄷㄷ).
+/// - Same vowel twice → 이중모음 (ㅏㅏ→ㅑ, ㅐㅐ→ㅒ ...).
+/// - 받침 + same consonant (바 + ㄱㄱ) waits for the next key:
+///   - a consonant, space or anything else keeps a doubled 받침 when one exists (밖, 있);
+///   - a vowel asks `HangulAmbiguityResolver` (word statistics): 바꿔 / 박고 / 학교 / 먹고.
+///   Until that next syllable is finished the other reading can be picked instead
+///   (`ambiguityAlternative` / `swapAmbiguity()`, shown in the suggestion bar).
 ///
 /// Every key returns `.update(commit:composing:)`: `commit` is text that can no longer change,
-/// `composing` is the short tail (at most 2 characters) that may still be rewritten.
+/// `composing` is the short tail that may still be rewritten.
 final class HangulEngine: InputEngine {
 
     let language: Language = .korean
@@ -21,51 +24,77 @@ final class HangulEngine: InputEngine {
         case empty
         case vowel(Character)
         case initial(Character)
+        /// The same plain consonant tapped twice at the start of a syllable (ㄱㄱ).
+        case initialPair(Character)
         case composingCV(initial: Character, medial: Character)
         case composingCVC(initial: Character, medial: Character, final_: Character)
         case boundaryAmbiguous(BoundaryAmbiguity)
     }
 
+    /// 바 + ㄱㄱ before the next key: 밖 / 박ㄱ / 바ㄲ.
     struct BoundaryAmbiguity: Equatable {
-        let committedSyllable: Character   // CV part, e.g. 하
         let leftInitial: Character
         let leftMedial: Character
         let consonant: Character            // the plain consonant tapped twice, e.g. ㄱ
-        let firstTapTime: CFTimeInterval
-        let secondTapTime: CFTimeInterval
-        var provisionalDecision: BoundaryDecision
     }
 
     enum BoundaryDecision: Equatable {
         case splitFinalPlainInitial   // 학 + 교
-        case tenseInitial             // 하 + 꾜 / 이 + 써
+        case tenseInitial             // 바 + 꿔
+
+        var flipped: BoundaryDecision {
+            self == .tenseInitial ? .splitFinalPlainInitial : .tenseInitial
+        }
+    }
+
+    /// A resolved ambiguity whose second syllable is still being typed: the left syllable is
+    /// held back (not committed) so the other reading can still be chosen.
+    private struct Held: Equatable {
+        let ambiguity: BoundaryAmbiguity
+        var decision: BoundaryDecision
     }
 
     private(set) var state: State = .empty
+    private var held: Held?
     private var pendingCommit: String = ""
 
     private let resolver: HangulAmbiguityResolver
-    private let lexicon: HangulLexicon?
 
-    /// Max gap between two taps of the same key that still counts as a double tap.
+    /// A lone vowel tapped twice within this gap is doubled (ㅜㅜ → ㅠ); slower stays ㅜㅜ.
     static let defaultThresholdMs: Double = 400
     var doubleTapThresholdMs: Double = HangulEngine.defaultThresholdMs
 
     private var lastKey: Character?
     private var lastKeyTime: CFTimeInterval = 0
 
-    init(resolver: HangulAmbiguityResolver = HangulAmbiguityResolver(),
-         lexicon: HangulLexicon? = HangulLexicon()) {
+    init(resolver: HangulAmbiguityResolver = HangulAmbiguityResolver()) {
         self.resolver = resolver
-        self.lexicon = lexicon
     }
 
     // MARK: - InputEngine
 
     /// Text still being composed (what is currently tracked inline in the document).
-    var compositionText: String { display(of: state) }
+    var compositionText: String { heldText + display(of: state) }
 
     var candidates: [String] { [] }
+
+    /// The other reading of the last 받침/쌍자음 decision while it can still be changed
+    /// (바꼬 → "박고"), nil otherwise.
+    var ambiguityAlternative: String? {
+        guard var h = held else { return nil }
+        h.decision = h.decision.flipped
+        return text(of: h) + display(of: state.withInitial(initial(for: h)))
+    }
+
+    /// Switch the last 받침/쌍자음 decision to the other reading (바꼬 ↔ 박고).
+    func swapAmbiguity() -> InputResult? {
+        guard var h = held else { return nil }
+        h.decision = h.decision.flipped
+        held = h
+        state = state.withInitial(initial(for: h))
+        lastKey = nil
+        return output()
+    }
 
     func handleKey(_ key: KeyEvent) -> InputResult {
         defer {
@@ -82,7 +111,7 @@ final class HangulEngine: InputEngine {
             if HangulJamo.isVowel(char) {
                 handleVowel(char, timestamp: key.timestamp)
             } else if HangulJamo.initialIndex(of: char) != nil {
-                handleConsonant(char, timestamp: key.timestamp)
+                handleConsonant(char)
             } else {
                 return flush(appending: str)
             }
@@ -102,15 +131,14 @@ final class HangulEngine: InputEngine {
 
     func reset() {
         state = .empty
+        held = nil
         pendingCommit = ""
         lastKey = nil
     }
 
     // MARK: - Consonants
 
-    private func handleConsonant(_ char: Character, timestamp: CFTimeInterval) {
-        let isRepeat = isQuickRepeat(of: char, at: timestamp)
-
+    private func handleConsonant(_ char: Character) {
         switch state {
         case .empty:
             state = .initial(char)
@@ -120,8 +148,16 @@ final class HangulEngine: InputEngine {
             state = .initial(char)
 
         case .initial(let current):
-            if current == char, isRepeat, let doubled = HangulJamo.doubled(char) {
-                state = .initial(doubled)
+            if current == char, HangulJamo.isDoubleable(char) {
+                state = .initialPair(char)
+            } else {
+                commitState()
+                state = .initial(char)
+            }
+
+        case .initialPair(let current):
+            if current == char {
+                emit(String(char))      // ㄱㄱㄱ: the last two taps still form the pair
             } else {
                 commitState()
                 state = .initial(char)
@@ -136,19 +172,10 @@ final class HangulEngine: InputEngine {
             }
 
         case .composingCVC(let initial, let medial, let final_):
-            if final_ == char, isRepeat, HangulJamo.isDoubleable(char),
-               let iIdx = HangulJamo.initialIndex(of: initial),
-               let mIdx = HangulJamo.medialIndex(of: medial) {
-                state = .boundaryAmbiguous(BoundaryAmbiguity(
-                    committedSyllable: HangulJamo.composeSyllable(initial: iIdx, medial: mIdx),
-                    leftInitial: initial,
-                    leftMedial: medial,
-                    consonant: char,
-                    firstTapTime: lastKeyTime,
-                    secondTapTime: timestamp,
-                    provisionalDecision: resolver.provisionalDecision(
-                        consonant: char, firstTapTime: lastKeyTime, secondTapTime: timestamp)
-                ))
+            if final_ == char, HangulJamo.isDoubleable(char) {
+                emit("")        // an earlier decision is final now
+                state = .boundaryAmbiguous(BoundaryAmbiguity(leftInitial: initial, leftMedial: medial,
+                                                             consonant: char))
             } else if let compound = HangulJamo.combineConsonants(final_, char) {
                 state = .composingCVC(initial: initial, medial: medial, final_: compound)
             } else {
@@ -158,7 +185,7 @@ final class HangulEngine: InputEngine {
 
         case .boundaryAmbiguous(let ambiguity):
             settleAmbiguityWithoutVowel(ambiguity)
-            handleConsonant(char, timestamp: timestamp)
+            handleConsonant(char)
         }
     }
 
@@ -170,7 +197,7 @@ final class HangulEngine: InputEngine {
             state = .vowel(char)
 
         case .vowel(let current):
-            if current == char, isQuickRepeat(of: char, at: timestamp),
+            if current == char, lastKey == char, (timestamp - lastKeyTime) * 1000 < doubleTapThresholdMs,
                let doubled = HangulJamo.doubledVowel(char) {
                 state = .vowel(doubled)
             } else if let combined = HangulJamo.combineVowels(current, char) {
@@ -182,6 +209,9 @@ final class HangulEngine: InputEngine {
 
         case .initial(let consonant):
             state = .composingCV(initial: consonant, medial: char)
+
+        case .initialPair(let consonant):
+            state = .composingCV(initial: HangulJamo.doubled(consonant) ?? consonant, medial: char)
 
         case .composingCV(let initial, let medial):
             if medial == char, lastKey == char, let doubled = HangulJamo.doubledVowel(char) {
@@ -195,24 +225,18 @@ final class HangulEngine: InputEngine {
 
         case .composingCVC(let initial, let medial, let final_):
             if let split = HangulJamo.splitCompoundFinal(final_) {
-                pendingCommit.append(syllable(initial, medial, split.stay))
+                emit(syllable(initial, medial, split.stay))
                 state = .composingCV(initial: split.move, medial: char)
             } else {
-                pendingCommit.append(syllable(initial, medial, nil))
+                emit(syllable(initial, medial, nil))
                 state = .composingCV(initial: final_, medial: char)
             }
 
-        case .boundaryAmbiguous(let ambiguity):
-            let decision = resolver.resolve(ambiguity: ambiguity, nextInput: char, lexicon: lexicon)
-            switch decision {
-            case .splitFinalPlainInitial:
-                pendingCommit.append(syllable(ambiguity.leftInitial, ambiguity.leftMedial, ambiguity.consonant))
-                state = .composingCV(initial: ambiguity.consonant, medial: char)
-            case .tenseInitial:
-                pendingCommit.append(ambiguity.committedSyllable)
-                state = .composingCV(initial: HangulJamo.doubled(ambiguity.consonant) ?? ambiguity.consonant,
-                                     medial: char)
-            }
+        case .boundaryAmbiguous(let a):
+            let left = syllable(a.leftInitial, a.leftMedial, nil).first ?? " "
+            let h = Held(ambiguity: a, decision: resolver.decide(left: left, consonant: a.consonant, vowel: char))
+            held = h
+            state = .composingCV(initial: initial(for: h), medial: char)
         }
     }
 
@@ -225,7 +249,14 @@ final class HangulEngine: InputEngine {
         case .vowel(let v):
             state = HangulJamo.decomposeVowel(v).map { .vowel($0) } ?? .empty
         case .initial:
-            state = .empty
+            if let h = held {
+                held = nil
+                state = .boundaryAmbiguous(h.ambiguity)   // 바꾸 ⌫ 바ㄲ ⌫ 밖
+            } else {
+                state = .empty
+            }
+        case .initialPair(let c):
+            state = .initial(c)
         case .composingCV(let initial, let medial):
             state = HangulJamo.decomposeVowel(medial).map { .composingCV(initial: initial, medial: $0) }
                 ?? .initial(initial)
@@ -250,12 +281,35 @@ final class HangulEngine: InputEngine {
         if let doubled = HangulJamo.doubled(a.consonant), HangulJamo.finalIndex(of: doubled) != nil {
             state = .composingCVC(initial: a.leftInitial, medial: a.leftMedial, final_: doubled)
         } else {
-            pendingCommit.append(syllable(a.leftInitial, a.leftMedial, a.consonant))
+            emit(syllable(a.leftInitial, a.leftMedial, a.consonant))
             state = .initial(a.consonant)
         }
     }
 
+    private func initial(for h: Held) -> Character {
+        h.decision == .tenseInitial ? (HangulJamo.doubled(h.ambiguity.consonant) ?? h.ambiguity.consonant)
+                                    : h.ambiguity.consonant
+    }
+
+    /// The held left syllable: 박 (받침 + 초성) or 바 (쌍자음).
+    private func text(of h: Held) -> String {
+        let a = h.ambiguity
+        return syllable(a.leftInitial, a.leftMedial, h.decision == .splitFinalPlainInitial ? a.consonant : nil)
+    }
+
+    private var heldText: String { held.map(text(of:)) ?? "" }
+
     // MARK: - Helpers
+
+    /// Commits `text`, preceded by the held syllable: once anything after it is committed,
+    /// its decision can no longer change.
+    private func emit(_ text: String) {
+        if let h = held {
+            pendingCommit.append(self.text(of: h))
+            held = nil
+        }
+        pendingCommit.append(text)
+    }
 
     private func output() -> InputResult {
         let commit = pendingCommit
@@ -275,12 +329,8 @@ final class HangulEngine: InputEngine {
         if case .boundaryAmbiguous(let a) = state {
             settleAmbiguityWithoutVowel(a)
         }
-        pendingCommit.append(display(of: state))
+        emit(display(of: state))
         state = .empty
-    }
-
-    private func isQuickRepeat(of char: Character, at timestamp: CFTimeInterval) -> Bool {
-        lastKey == char && (timestamp - lastKeyTime) * 1000 < doubleTapThresholdMs
     }
 
     private func syllable(_ initial: Character, _ medial: Character, _ final_: Character?) -> String {
@@ -300,6 +350,8 @@ final class HangulEngine: InputEngine {
             return String(v)
         case .initial(let c):
             return String(c)
+        case .initialPair(let c):
+            return String(c) + String(c)    // ㄱㄱ stays as typed unless a vowel follows
         case .composingCV(let i, let m):
             return syllable(i, m, nil)
         case .composingCVC(let i, let m, let f):
@@ -310,6 +362,18 @@ final class HangulEngine: InputEngine {
                 return syllable(a.leftInitial, a.leftMedial, doubled)
             }
             return syllable(a.leftInitial, a.leftMedial, a.consonant) + String(a.consonant)
+        }
+    }
+}
+
+private extension HangulEngine.State {
+    /// The same state with another 초성 (used when a held decision is switched).
+    func withInitial(_ c: Character) -> Self {
+        switch self {
+        case .initial: return .initial(c)
+        case .composingCV(_, let m): return .composingCV(initial: c, medial: m)
+        case .composingCVC(_, let m, let f): return .composingCVC(initial: c, medial: m, final_: f)
+        default: return self
         }
     }
 }

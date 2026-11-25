@@ -22,6 +22,16 @@ struct SettingsView: View {
                      : "The globe key cycles English, Chinese and Korean.")
             }
 
+            // MARK: - Keyboard size
+            Section {
+                KeySizeRow(title: "Korean", scale: $settings.koreanKeyScale)
+                KeySizeRow(title: "English & Chinese", scale: $settings.latinKeyScale)
+            } header: {
+                Text("Key Size")
+            } footer: {
+                Text("100% is the size of the iPhone keyboard. Bigger keys make the keyboard taller.")
+            }
+
             // MARK: - Feedback
             Section("Feedback") {
                 Toggle("Haptic Feedback", isOn: $settings.hapticFeedbackEnabled)
@@ -70,6 +80,8 @@ struct SettingsView: View {
         .onChange(of: settings.soundEnabled) { _ in settings.save() }
         .onChange(of: settings.pairedLanguageMode) { _ in settings.save() }
         .onChange(of: settings.selectedThemeID) { _ in settings.save() }
+        .onChange(of: settings.koreanKeyScale) { _ in settings.save() }
+        .onChange(of: settings.latinKeyScale) { _ in settings.save() }
     }
 
     private var currentThemeName: String {
@@ -86,5 +98,41 @@ struct SettingsView: View {
         case .chinese: return "Chinese (Pinyin)"
         case .korean: return "Korean (Danmoeum)"
         }
+    }
+}
+
+/// A key size slider in 5% steps (85% – 130%); 100% = the iPhone system keyboard.
+private struct KeySizeRow: View {
+    let title: String
+    @Binding var scale: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(label)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                if abs(scale - 1) > 0.001 {
+                    Button("Reset") { scale = 1 }
+                        .buttonStyle(.borderless)
+                        .font(.subheadline)
+                }
+            }
+            Slider(value: $scale, in: AppConstants.keyScaleRange, step: 0.05) {
+                Text(title)
+            } minimumValueLabel: {
+                Image(systemName: "textformat.size.smaller").foregroundStyle(.secondary)
+            } maximumValueLabel: {
+                Image(systemName: "textformat.size.larger").foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var label: String {
+        let percent = Int((scale * 100).rounded())
+        return percent == 100 ? "100% (iPhone)" : "\(percent)%"
     }
 }

@@ -169,8 +169,8 @@ enum InputResult {
 
 - Root = UIKit: `SuggestionBarView` (SwiftUI, top strip) + `KeysView` (UIKit, real multi-touch)
   + `CandidateGridView` (SwiftUI, expanded Pinyin candidates over the keys).
-- Fixed height for every language/page (`KeyboardMetrics`): switching never resizes the
-  keyboard (resizing used to clip the bottom row). Background is the system's; keys are drawn
+- Height (`KeyboardMetrics`) depends only on orientation and the key size setting of the current
+  language, never on the page; pages within a language never resize the keyboard. Background is the system's; keys are drawn
   iOS-style (white letter keys, gray function keys, blue action return key).
 - Layout model: `KeyRow(keys, columns)` + `KeyWidth.standard/wide/flex/gap`; `RowLayout`
   computes frames (unit-tested). Bottom row everywhere: `123 · 🌐(our language cycle) · space · ⏎`
@@ -202,13 +202,28 @@ enum InputResult {
 123 🌐 [  space  ] ⏎
 ```
 
-- Same consonant twice within 400 ms → 쌍자음: ㅂ→ㅃ ㅈ→ㅉ ㄷ→ㄸ ㄱ→ㄲ ㅅ→ㅆ.
-- Same vowel twice → ㅗ→ㅛ ㅓ→ㅕ ㅏ→ㅑ ㅜ→ㅠ ㅐ→ㅒ ㅔ→ㅖ (no time limit inside a syllable).
+- Tap speed never matters (only a lone vowel: ㅜㅜ quickly → ㅠ, slowly → ㅜㅜ).
+- Same consonant twice at a syllable start → 쌍자음 when a vowel follows (ㄱㄱㅏ → 까);
+  otherwise it stays as typed (ㅂㅂ, ㄷㄷ, ㄱㄱ in chat). ㄱㄱㄱㅏ → ㄱ까.
+- Same vowel twice → ㅗ→ㅛ ㅓ→ㅕ ㅏ→ㅑ ㅜ→ㅠ ㅐ→ㅒ ㅔ→ㅖ.
 - Compound vowels: ㅗ+ㅏ=ㅘ, ㅗ+ㅐ=ㅙ, ㅗ+ㅣ=ㅚ, ㅜ+ㅓ=ㅝ, ㅜ+ㅔ=ㅞ, ㅜ+ㅣ=ㅟ, ㅡ+ㅣ=ㅢ.
   ㅏ+ㅣ is NOT ㅐ (ㅐ/ㅔ have their own keys).
-- 받침 + same consonant (학 + ㄱ) is ambiguous: a following vowel is resolved by
-  `HangulAmbiguityResolver` (lexicon by next-syllable initial, then tap timing);
-  anything else keeps a doubled 받침 when one exists (있, 밖).
+- 받침 + same consonant (바 + ㄱㄱ) waits for the next key. A consonant / space keeps a doubled
+  받침 when one exists (밖이야, 있다). A vowel is resolved by `HangulAmbiguityResolver` from
+  `Resources/hangul_pairs.tsv` (left syllable + consonant + first vowel key → counts of 박구-type vs
+  바꾸-type words, built by `Tools/build_hangul_pairs.py` from FrequencyWords, CC BY-SA 4.0;
+  unknown → 쌍자음): 바꿔, 아빠, 이따 / 먹고, 학교, 박고.
+- Until that next syllable is finished the left syllable is held in the composition, and the bar
+  shows the other reading in quotes (“바꼬” while 박고 is typed); tapping it swaps
+  (`HangulEngine.swapAmbiguity`). Backspace walks back: 바꾸 → 바ㄲ → 밖 → 박.
+
+## Key size
+
+- Defaults are the iOS 26 system keyboard (measured in the simulator: 45 pt keys, 11 pt row gap,
+  ~35 pt key width on a 420 pt screen). App Settings → Key Size has a slider for Korean and one for
+  English & Chinese (85–130 %, App Group keys `koreanKeyScale` / `latinKeyScale`); only key heights
+  and row gaps scale. The keyboard height follows the current language, so switching between
+  Korean and English can resize it (`updateMetrics()` in `changeLanguage`).
 
 ## Chinese Pinyin Input -- Design Notes
 
@@ -297,6 +312,7 @@ A: The globe key in the bottom row calls `KeyboardViewController.changeLanguage`
 | Date | Action | Details |
 |---|---|---|
 | 2026-04-17 | Created | Initial module documentation from planned architecture. |
+| 2026-11-25 | 단모음 / size | Timing-free 쌍자음 (word statistics + “alternative” chip in the bar); iOS-sized keys (45 pt) with per-language Key Size setting. |
 | 2026-11-25 | Languages | Chinese shift key (capitals typed as-is); paired mode: globe 한 ↔ EN, 한/中 toggle in the bar. |
 | 2026-11-24 | librime | PinyinEngine/PinyinDictionary replaced by RimeEngine (librime + rime-ice + octagram); app is GPL-3.0. |
 | 2026-11-24 | Full Access | RequestsOpenAccess = true (haptics, App Group settings). No network code; keyboard fully works without it. |

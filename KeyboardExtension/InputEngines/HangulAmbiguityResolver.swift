@@ -1,85 +1,54 @@
 import Foundation
 
-struct AmbiguityConfig: Codable {
-    /// Below this gap a double tap at a 받침 is provisionally read as 쌍자음 (아빠);
-    /// a slower second tap is read as 받침 + 초성 (압박). The lexicon can override both.
-    var doubleTapThresholdMs: Int = 250
-    var undoWindowMs: Int = 500
-    var adaptiveEnabled: Bool = false
-}
-
+/// Decides 받침 + 초성 vs 쌍자음 when the same consonant is tapped twice after a vowel
+/// (ㅂㅏㄱㄱㅜ → 박구 or 바꾸). Tap speed plays no part: the decision comes from how often each
+/// reading occurs in Korean text (`hangul_pairs.tsv`, built by Tools/build_hangul_pairs.py).
+///
+/// Lookup order: left syllable + consonant + vowel key → left syllable + consonant (any vowel)
+/// → 쌍자음 (the more common reading for every consonant in the data).
 final class HangulAmbiguityResolver {
 
-    private var config: AmbiguityConfig
-
-    init(config: AmbiguityConfig = AmbiguityConfig()) {
-        self.config = config
+    struct Counts: Equatable {
+        var split: Int    // 박 + 구
+        var tense: Int    // 바 + 꾸
     }
 
-    /// Determine provisional decision based on timing
-    func provisionalDecision(
-        consonant: Character,
-        firstTapTime: CFTimeInterval,
-        secondTapTime: CFTimeInterval
-    ) -> HangulEngine.BoundaryDecision {
-        let intervalMs = (secondTapTime - firstTapTime) * 1000
-        if intervalMs < Double(config.doubleTapThresholdMs) {
-            return .tenseInitial
-        } else {
-            return .splitFinalPlainInitial
+    private var exact: [String: Counts] = [:]
+    private var bySyllable: [String: Counts] = [:]
+
+    /// `pairs` is the TSV text; nil loads `hangul_pairs.tsv` from the bundle.
+    init(pairs: String? = nil) {
+        let text = pairs ?? Self.bundledTable()
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            let fields = line.split(separator: "\t")
+            guard fields.count == 3, let split = Int(fields[1]), let tense = Int(fields[2]) else { continue }
+            let key = String(fields[0])
+            exact[key] = Counts(split: split, tense: tense)
+            let prefix = String(key.prefix(2))
+            bySyllable[prefix, default: Counts(split: 0, tense: 0)].split += split
+            bySyllable[prefix, default: Counts(split: 0, tense: 0)].tense += tense
         }
     }
 
-    /// Final resolution when next input arrives (vowel/delimiter)
-    func resolve(
-        ambiguity: HangulEngine.BoundaryAmbiguity,
-        nextInput: Character?,
-        lexicon: HangulLexiconProtocol?
-    ) -> HangulEngine.BoundaryDecision {
-        var decision = ambiguity.provisionalDecision
-
-        guard let lexicon, let nextInput else { return decision }
-
-        let initial = ambiguity.leftInitial
-        let medial = ambiguity.leftMedial
-        let consonant = ambiguity.consonant
-
-        guard let initIdx = HangulJamo.initialIndex(of: initial),
-              let medIdx = HangulJamo.medialIndex(of: medial),
-              let finIdx = HangulJamo.finalIndex(of: consonant),
-              HangulJamo.isVowel(nextInput) else {
-            return decision
-        }
-
-        // Compare by the *initial* of the next syllable only (not the vowel), because on
-        // 단모음 the vowel may still change with a double tap (ㅗ → ㅛ in 학교).
-        // Option A: 학 + ㄱ...  (split)      Option B: 하 + ㄲ... (tense initial)
-        let cvcSyllable = HangulJamo.composeSyllable(initial: initIdx, medial: medIdx, final: finIdx)
-        guard let doubled = HangulJamo.doubled(consonant) else {
-            return .splitFinalPlainInitial
-        }
-        let cvSyllable = HangulJamo.composeSyllable(initial: initIdx, medial: medIdx)
-
-        let scoreA = lexicon.score(first: cvcSyllable, nextInitial: consonant)
-        let scoreB = lexicon.score(first: cvSyllable, nextInitial: doubled)
-
-        // Only override timing decision if lexicon has a clear preference
-        let threshold = 100
-        if scoreA > scoreB + threshold {
-            decision = .splitFinalPlainInitial
-        } else if scoreB > scoreA + threshold {
-            decision = .tenseInitial
-        }
-
-        return decision
+    /// - Parameters:
+    ///   - left: the syllable before the consonant, without 받침 (바)
+    ///   - consonant: the plain consonant tapped twice (ㄱ)
+    ///   - vowel: the vowel typed after it (ㅜ; ㅠ / ㅝ count as ㅜ)
+    func decide(left: Character, consonant: Character, vowel: Character) -> HangulEngine.BoundaryDecision {
+        let key = "\(left)\(consonant)"
+        let counts = exact[key + String(Self.vowelKey(vowel))] ?? bySyllable[key]
+        guard let counts, counts.split != counts.tense else { return .tenseInitial }
+        return counts.split > counts.tense ? .splitFinalPlainInitial : .tenseInitial
     }
 
-    /// Record a user correction for adaptive learning (v2)
-    func registerCorrection(
-        consonant: Character,
-        wasDecision: HangulEngine.BoundaryDecision,
-        correctedTo: HangulEngine.BoundaryDecision
-    ) {
-        // For v1: no-op. Adaptive learning in v2.
+    /// The first key tapped for a vowel on 단모음: ㅛ ㅘ ㅚ → ㅗ, ㅠ ㅝ ㅟ → ㅜ, ㅢ → ㅡ ...
+    static func vowelKey(_ vowel: Character) -> Character {
+        HangulJamo.decomposeVowel(vowel) ?? vowel
+    }
+
+    private static func bundledTable() -> String {
+        guard let url = Bundle(for: HangulAmbiguityResolver.self).url(forResource: "hangul_pairs", withExtension: "tsv"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+        return text
     }
 }

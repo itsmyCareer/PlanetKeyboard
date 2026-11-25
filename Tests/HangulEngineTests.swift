@@ -96,76 +96,131 @@ final class HangulEngineTests: XCTestCase {
 
     // MARK: - 단모음: double-tap consonants
 
-    func testDoubleConsonantInitial() {
-        let cases: [(String, String)] = [("ㅂ", "ㅃ"), ("ㅈ", "ㅉ"), ("ㄷ", "ㄸ"), ("ㄱ", "ㄲ"), ("ㅅ", "ㅆ")]
-        for (key, expected) in cases {
-            let harness = HangulHarness()
-            harness.type(key + key, gap: 0.15)
-            XCTAssertEqual(harness.text, expected, key)
+    func testDoubleConsonantBeforeVowelAtAnySpeed() {
+        let cases: [(String, String)] = [("ㅂ", "빠"), ("ㅈ", "짜"), ("ㄷ", "따"), ("ㄱ", "까"), ("ㅅ", "싸")]
+        for gap in [0.1, 0.9] {
+            for (key, expected) in cases {
+                let harness = HangulHarness()
+                harness.type(key + key + "ㅏ", gap: gap)
+                XCTAssertEqual(harness.text, expected, "\(key) gap \(gap)")
+            }
         }
     }
 
-    func testDoubleConsonantWithVowel() {
-        h.type("ㅂ", gap: 0.6)
-        h.type("ㅂ", gap: 0.15)
-        h.type("ㅏ")
-        XCTAssertEqual(h.text, "빠")
-    }
-
-    func testSlowRepeatIsTwoConsonants() {
-        h.type("ㄱㄱ", gap: 0.8)
+    func testRepeatedConsonantsWithoutVowelStayAsTyped() {
+        // Chat: ㅂㅂ, ㄷㄷ, ㅈㅈ, ㄱㄱ — even when tapped quickly.
+        for keys in ["ㅂㅂ", "ㄷㄷ", "ㅈㅈ", "ㄱㄱ"] {
+            let harness = HangulHarness()
+            harness.type(keys + " ", gap: 0.1)
+            XCTAssertEqual(harness.text, keys + " ", keys)
+        }
+        h.type("ㄱㄱ", gap: 0.1)
         XCTAssertEqual(h.text, "ㄱㄱ")
     }
 
-    // MARK: - 받침 + same consonant
-
-    func testHakgyo() {
-        h.type("ㅎㅏㄱ")
-        h.type("ㄱ", gap: 0.15)
-        h.type("ㅛ")
-        XCTAssertEqual(h.text, "학교")
+    func testTripleConsonantPairsTheLastTwo() {
+        h.type("ㄱㄱㄱㅏ")
+        XCTAssertEqual(h.text, "ㄱ까")
     }
 
-    func testHakgyoWithDoubleTapVowel() {
-        h.type("ㅎㅏㄱ")
-        h.type("ㄱ", gap: 0.15)
-        h.type("ㅗ")
-        h.type("ㅗ", gap: 0.15)
-        XCTAssertEqual(h.text, "학교")
+    // MARK: - 받침 + same consonant (no timing: the next key and word statistics decide)
+
+    func testBakkwoAtAnySpeed() {
+        for gap in [0.1, 0.9] {
+            let harness = HangulHarness()
+            harness.type("ㅂㅏㄱㄱㅜㅓ", gap: gap)
+            XCTAssertEqual(harness.text, "바꿔", "gap \(gap)")
+        }
     }
 
-    func testAppa() {
-        h.type("ㅇㅏㅂ")
-        h.type("ㅂ", gap: 0.15)
-        h.type("ㅏ")
-        XCTAssertEqual(h.text, "아빠")
+    func testBakkiyaAtAnySpeed() {
+        // A consonant after ㄱㄱ makes it a doubled 받침, never 박ㄱ.
+        for gap in [0.1, 0.9] {
+            let harness = HangulHarness()
+            harness.type("ㅂㅏㄱㄱㅇㅣㅇㅏㅏ", gap: gap)
+            XCTAssertEqual(harness.text, "밖이야", "gap \(gap)")
+        }
+    }
+
+    func testCommonSplitWords() {
+        let cases: [(String, String)] = [
+            ("ㅁㅓㄱㄱㅗ", "먹고"), ("ㅎㅏㄱㄱㅗㅗ", "학교"), ("ㅎㅏㄱㄱㅣ", "학기"), ("ㅂㅏㄱㄱㅗ", "박고"),
+        ]
+        for (keys, expected) in cases {
+            let harness = HangulHarness()
+            harness.type(keys, gap: 0.9)
+            XCTAssertEqual(harness.text, expected, keys)
+        }
+    }
+
+    func testCommonTenseWords() {
+        let cases: [(String, String)] = [
+            ("ㅇㅏㅂㅂㅏ", "아빠"), ("ㅇㅗㅂㅂㅏ", "오빠"), ("ㅇㅏㄱㄱㅏ", "아까"), ("ㅇㅖㅂㅂㅓ", "예뻐"),
+            ("ㄴㅏㅂㅂㅏ", "나빠"), ("ㅇㅣㄷㄷㅏ", "이따"),
+        ]
+        for (keys, expected) in cases {
+            let harness = HangulHarness()
+            harness.type(keys, gap: 0.1)
+            XCTAssertEqual(harness.text, expected, keys)
+        }
+    }
+
+    func testAlternativeSwapsTheDecision() {
+        h.type("ㅂㅏㄱㄱㅗ")
+        XCTAssertEqual(h.text, "박고")
+        XCTAssertEqual(h.engine.ambiguityAlternative, "바꼬")
+        h.swap()
+        XCTAssertEqual(h.text, "바꼬")
+        XCTAssertEqual(h.engine.ambiguityAlternative, "박고")
+        h.type("ㅁ ")
+        XCTAssertEqual(h.text, "바꼼 ")
+        XCTAssertNil(h.engine.ambiguityAlternative)
+    }
+
+    func testAlternativeEndsWithTheSyllable() {
+        h.type("ㅂㅏㄱㄱㅜㅓ")
+        XCTAssertEqual(h.engine.ambiguityAlternative, "박궈")
+        h.type("ㅇ")
+        XCTAssertEqual(h.engine.ambiguityAlternative, "박궝")
+        h.type("ㅛ")    // 바꿔 + 요: the 받침 moved on, the decision is final
+        XCTAssertNil(h.engine.ambiguityAlternative)
+    }
+
+    func testBackspaceReturnsToTheAmbiguity() {
+        h.type("ㅂㅏㄱㄱㅜ")
+        XCTAssertEqual(h.text, "바꾸")
+        h.type("⌫")
+        XCTAssertEqual(h.text, "바ㄲ")
+        h.type("⌫")
+        XCTAssertEqual(h.text, "밖")
+        h.type("⌫")
+        XCTAssertEqual(h.text, "박")
+        h.type("ㅣ")
+        XCTAssertEqual(h.text, "바기")
     }
 
     func testItda() {
-        h.type("ㅇㅣㅅ")
-        h.type("ㅅ", gap: 0.15)
+        h.type("ㅇㅣㅅㅅ")
         XCTAssertEqual(h.text, "있")
         h.type("ㄷㅏ")
         XCTAssertEqual(h.text, "있다")
     }
 
     func testItseo() {
-        h.type("ㅇㅣㅅ")
-        h.type("ㅅ", gap: 0.15)
-        h.type("ㅇㅓ")
+        h.type("ㅇㅣㅅㅅㅇㅓ")
         XCTAssertEqual(h.text, "있어")
     }
 
     func testBakThenSpace() {
-        h.type("ㅂㅏㄱ")
-        h.type("ㄱ", gap: 0.15)
-        h.type(" ")
+        h.type("ㅂㅏㄱㄱ ")
         XCTAssertEqual(h.text, "밖 ")
     }
 
-    func testSlowSameConsonantAfterFinal() {
-        h.type("ㅎㅏㄱㄱㅣ", gap: 0.8)
-        XCTAssertEqual(h.text, "학기")
+    func testResolverFallsBackToSyllableThenTense() {
+        let resolver = HangulAmbiguityResolver(pairs: "# test\n하ㄱㅗ\t50\t1\n하ㄱㅏ\t5\t1\n")
+        XCTAssertEqual(resolver.decide(left: "하", consonant: "ㄱ", vowel: "ㅛ"), .splitFinalPlainInitial)
+        XCTAssertEqual(resolver.decide(left: "하", consonant: "ㄱ", vowel: "ㅣ"), .splitFinalPlainInitial)
+        XCTAssertEqual(resolver.decide(left: "아", consonant: "ㅂ", vowel: "ㅏ"), .tenseInitial)
     }
 
     // MARK: - Backspace

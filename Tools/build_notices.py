@@ -57,6 +57,13 @@ def main():
         "Unicode CLDR and Unicode Emoji data", "https://github.com/unicode-org/cldr  ·  https://www.unicode.org/emoji/",
         "Emoji list, categories and Korean/English/Chinese emoji keywords",
         read("emoji", "cldr_LICENSE"))
+    out += section(
+        "FrequencyWords (Korean word frequencies)", "https://github.com/hermitdave/FrequencyWords",
+        "Statistics that decide 받침 vs 쌍자음 on the Korean 단모음 keyboard (hangul_pairs.tsv)",
+        "Word list ko_full.txt (2018, from OpenSubtitles) by Hermit Dave, licensed under the Creative\n"
+        "Commons Attribution-ShareAlike 4.0 International License\n"
+        "(https://creativecommons.org/licenses/by-sa/4.0/). Changed: reduced to counts of syllable\n"
+        "pairs by Tools/build_hangul_pairs.py; the resulting table is under the same license.")
     out += section("GNU General Public License v3.0", "https://www.gnu.org/licenses/gpl-3.0.html",
                    "This app and rime-ice", vread("rime-ice", "LICENSE"))
     with open(a.output, "w", encoding="utf-8") as f:

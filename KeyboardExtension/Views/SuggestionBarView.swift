@@ -11,6 +11,9 @@ struct SuggestionBarView: View {
             if let toggle = model.languageToggle, !model.isComposing {
                 LanguageToggleView(toggle: toggle) { model.onToggleLanguage?() }
             }
+            if let alternative = model.alternative, !model.isComposing {
+                AlternativeButton(text: alternative) { model.onAlternative?() }
+            }
             if model.suggestions.isEmpty {
                 Spacer()
             } else {
@@ -93,6 +96,31 @@ struct LanguageToggleView: View {
                         .matchedGeometryEffect(id: "selection", in: namespace)
                 }
             }
+    }
+}
+
+/// “박고” while 바꼬 is being typed (or the other way round): the other reading of a doubled
+/// consonant, quoted like the system keyboard's "keep what I typed" suggestion.
+struct AlternativeButton: View {
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("\u{201C}\(text)\u{201D}")
+                .font(.system(size: 20))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 11)
+                .frame(minWidth: 40, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(SuggestionButtonStyle())
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Color.primary.opacity(0.15)).frame(width: 1, height: 22)
+        }
+        .accessibilityLabel(text)
     }
 }
 

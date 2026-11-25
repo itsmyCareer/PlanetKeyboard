@@ -4,7 +4,11 @@ An iOS custom keyboard for **Korean (단모음 / Danmoeum)**, **English (QWERTY)
 **Simplified Chinese Pinyin** in one keyboard.
 
 - **Korean 단모음**: an 8-column layout; tap a key twice for the doubled consonant or the
-  y-vowel (ㅂ→ㅃ, ㅗ→ㅛ).
+  y-vowel (ㅂ→ㅃ, ㅗ→ㅛ). Tap speed does not matter: after a 받침 the next key decides
+  (밖이야, 바꿔, 학교, 먹고), using Korean word statistics, and the other reading is one tap
+  away in the suggestion bar (“바꼬” ↔ “박고”).
+- **Key size**: iPhone-sized keys by default, with separate size settings for Korean and for
+  English & Chinese.
 - **Chinese Pinyin**: whole-sentence input and abbreviations (`nzzsm` → 你在做什么).
   - Powered by [librime](https://github.com/rime/librime), the
     [rime-ice](https://github.com/iDvel/rime-ice) word lists and the
@@ -30,7 +34,7 @@ Requirements: Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen), CMak
 The Chinese engine is built from source. Its downloads and build outputs are not in git:
 
 ```bash
-Tools/rime/fetch_sources.sh              # librime, octagram, rime-ice, Boost, model → Vendor/
+Tools/rime/fetch_sources.sh              # librime, octagram, rime-ice, Boost, model, word list → Vendor/
 Tools/rime/build_librime.sh macos
 Tools/rime/build_librime.sh ios
 Tools/rime/build_librime.sh iossim
@@ -80,3 +84,4 @@ which is also shown in the app under Settings → Open Source Licenses:
 - OpenCC: Apache-2.0
 - yaml-cpp: MIT
 - Unicode CLDR: Unicode License
+- FrequencyWords Korean word list (for `hangul_pairs.tsv`): CC BY-SA 4.0

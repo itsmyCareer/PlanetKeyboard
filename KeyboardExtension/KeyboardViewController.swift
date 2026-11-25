@@ -35,6 +35,8 @@ final class KeyboardViewController: UIInputViewController {
     private var heightConstraint: NSLayoutConstraint?
     private var barHeightConstraint: NSLayoutConstraint?
     private var metrics = KeyboardMetrics.portrait
+    /// Key size settings per language, read when the keyboard appears.
+    private var keyScales: [Language: Double] = [:]
     private var cancellables = Set<AnyCancellable>()
 
     /// Pinyin shown in the text field as marked (underlined) text while composing.
@@ -72,6 +74,7 @@ final class KeyboardViewController: UIInputViewController {
         HapticManager.shared.loadSettings()
         HapticManager.shared.prepare()
         languages.isPaired = KeyboardPreferences.isPairedLanguageMode
+        keyScales = Dictionary(uniqueKeysWithValues: Language.allCases.map { ($0, KeyboardPreferences.keyScale(for: $0)) })
         ThemeManager.shared.loadTheme()
         model.updateTheme(ThemeManager.shared.currentTheme)
         applyTraits(force: true)
@@ -205,6 +208,12 @@ final class KeyboardViewController: UIInputViewController {
             HapticManager.shared.triggerSpecialKey()
             self?.changeLanguage { $0.toggleChinese() }
         }
+        model.onAlternative = { [weak self] in
+            guard let self, let result = self.hangulEngine.swapAmbiguity() else { return }
+            HapticManager.shared.triggerKeyTap()
+            self.apply(result)
+            self.refreshSuggestions()
+        }
         model.onDismiss = { [weak self] in
             self?.commitComposition()
             self?.dismissKeyboard()
@@ -226,7 +235,8 @@ final class KeyboardViewController: UIInputViewController {
         } else {
             landscape = traitCollection.verticalSizeClass == .compact
         }
-        let new = landscape ? KeyboardMetrics.landscape : .portrait
+        let new = KeyboardMetrics.make(landscape: landscape, scale: keyScales[currentLanguage] ?? 1)
+        guard new != metrics || heightConstraint?.constant != new.totalHeight else { return }
         metrics = new
         keysView.metrics = new
         heightConstraint?.constant = new.totalHeight
@@ -524,6 +534,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func refreshSuggestions() {
         updateLanguageToggle()
+        model.setAlternative(currentLanguage == .korean && mode == .letters ? hangulEngine.ambiguityAlternative : nil)
         if isPinyinComposing {
             model.showCandidates(pinyinEngine.candidates)
             return
@@ -585,6 +596,7 @@ final class KeyboardViewController: UIInputViewController {
         chineseShift = .off
         KeyboardPreferences.preferredLanguage = languages.current
         KeyboardPreferences.baseLanguage = languages.base
+        updateMetrics()     // Korean and English/Chinese can have different key sizes
         afterTextChange()
     }
 
@@ -630,6 +642,12 @@ enum KeyboardPreferences {
     /// Set in the app (Settings → Language), so it is read from the App Group.
     static var isPairedLanguageMode: Bool {
         AppGroup.userDefaults.bool(forKey: Key.pairedLanguageMode)
+    }
+
+    /// Key size setting for a language (app Settings → Key Size; 1 = system keyboard).
+    static func keyScale(for language: Language) -> Double {
+        let key = language == .korean ? Key.koreanKeyScale : Key.latinKeyScale
+        return AppGroup.userDefaults.object(forKey: key) as? Double ?? 1
     }
 
     private static func language(_ key: String) -> Language? {

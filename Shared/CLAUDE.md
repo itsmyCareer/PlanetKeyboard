@@ -23,6 +23,7 @@ No entry point. This module is a static library / source files included in both 
 Shared/
   Constants.swift      # App Group ID, UserDefaults keys, Language enum
   AppGroup.swift       # UserDefaults(suiteName:) helper, shared container URL
+  KeyboardStatus.swift # HapticMethod; what the keyboard last saw (Full Access, last haptic) for the app
 ```
 
 ## External Interfaces
@@ -114,3 +115,4 @@ A: Add it here only if both targets truly need the same type. Otherwise keep mod
 | Date | Action | Details |
 |---|---|---|
 | 2026-04-17 | Created | Initial module documentation from planned architecture. |
+| 2026-11-25 | Haptics | KeyboardStatus.swift (HapticMethod, keyboard diagnostics in the App Group). |

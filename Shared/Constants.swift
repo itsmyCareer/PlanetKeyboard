@@ -27,6 +27,14 @@ enum AppConstants {
         /// Key height multipliers (1 = iPhone system keyboard): Korean, and English & Chinese.
         static let koreanKeyScale = "koreanKeyScale"
         static let latinKeyScale = "latinKeyScale"
+        /// `HapticMethod` raw value.
+        static let hapticMethod = "hapticMethod"
+        /// Written by the keyboard (see `KeyboardStatus`).
+        static let statusFullAccess = "status.fullAccess"
+        static let statusHapticsEnabled = "status.hapticsEnabled"
+        static let statusMethod = "status.method"
+        static let statusSeenAt = "status.seenAt"
+        static let statusLastHapticAt = "status.lastHapticAt"
     }
 
     /// Allowed key size settings (1 = the iPhone system keyboard).

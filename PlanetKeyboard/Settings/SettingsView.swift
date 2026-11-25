@@ -33,10 +33,7 @@ struct SettingsView: View {
             }
 
             // MARK: - Feedback
-            Section("Feedback") {
-                Toggle("Haptic Feedback", isOn: $settings.hapticFeedbackEnabled)
-                Toggle("Key Sound", isOn: $settings.soundEnabled)
-            }
+            HapticSettingsSection(settings: $settings)
 
             // MARK: - Theme
             Section("Theme") {
@@ -78,6 +75,7 @@ struct SettingsView: View {
         .onChange(of: settings.preferredLanguage) { _ in settings.save() }
         .onChange(of: settings.hapticFeedbackEnabled) { _ in settings.save() }
         .onChange(of: settings.soundEnabled) { _ in settings.save() }
+        .onChange(of: settings.hapticMethod) { _ in settings.save() }
         .onChange(of: settings.pairedLanguageMode) { _ in settings.save() }
         .onChange(of: settings.selectedThemeID) { _ in settings.save() }
         .onChange(of: settings.koreanKeyScale) { _ in settings.save() }

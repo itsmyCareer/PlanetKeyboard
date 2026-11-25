@@ -10,6 +10,7 @@ struct KeyboardSettings: Codable {
     /// Key height multipliers (1 = iPhone system keyboard).
     var koreanKeyScale: Double = 1
     var latinKeyScale: Double = 1
+    var hapticMethod: HapticMethod = .standard
 
     static func load() -> KeyboardSettings {
         let defaults = AppGroup.userDefaults
@@ -20,7 +21,8 @@ struct KeyboardSettings: Codable {
             soundEnabled: defaults.object(forKey: AppConstants.UserDefaultsKey.soundEnabled) as? Bool ?? false,
             pairedLanguageMode: defaults.bool(forKey: AppConstants.UserDefaultsKey.pairedLanguageMode),
             koreanKeyScale: defaults.object(forKey: AppConstants.UserDefaultsKey.koreanKeyScale) as? Double ?? 1,
-            latinKeyScale: defaults.object(forKey: AppConstants.UserDefaultsKey.latinKeyScale) as? Double ?? 1
+            latinKeyScale: defaults.object(forKey: AppConstants.UserDefaultsKey.latinKeyScale) as? Double ?? 1,
+            hapticMethod: HapticMethod(rawValue: defaults.string(forKey: AppConstants.UserDefaultsKey.hapticMethod) ?? "") ?? .standard
         )
     }
 
@@ -33,5 +35,6 @@ struct KeyboardSettings: Codable {
         defaults.set(pairedLanguageMode, forKey: AppConstants.UserDefaultsKey.pairedLanguageMode)
         defaults.set(koreanKeyScale, forKey: AppConstants.UserDefaultsKey.koreanKeyScale)
         defaults.set(latinKeyScale, forKey: AppConstants.UserDefaultsKey.latinKeyScale)
+        defaults.set(hapticMethod.rawValue, forKey: AppConstants.UserDefaultsKey.hapticMethod)
     }
 }

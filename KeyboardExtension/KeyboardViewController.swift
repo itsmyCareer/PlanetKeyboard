@@ -70,10 +70,11 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        HapticManager.shared.hasFullAccess = hasFullAccess
+        HapticManager.shared.fullAccess = { [weak self] in self?.hasFullAccess ?? false }
         HapticManager.shared.attach(to: view)
         HapticManager.shared.loadSettings()
         HapticManager.shared.prepare()
+        model.fullAccessMissing = !hasFullAccess
         languages.isPaired = KeyboardPreferences.isPairedLanguageMode
         keyScales = Dictionary(uniqueKeysWithValues: Language.allCases.map { ($0, KeyboardPreferences.keyScale(for: $0)) })
         ThemeManager.shared.loadTheme()

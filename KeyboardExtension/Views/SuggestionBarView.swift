@@ -15,6 +15,9 @@ struct SuggestionBarView: View {
                 AlternativeButton(text: alternative) { model.onAlternative?() }
             }
             if model.suggestions.isEmpty {
+                if model.fullAccessMissing && model.alternative == nil {
+                    FullAccessHint()
+                }
                 Spacer()
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -96,6 +99,18 @@ struct LanguageToggleView: View {
                         .matchedGeometryEffect(id: "selection", in: namespace)
                 }
             }
+    }
+}
+
+/// Shown in an empty bar while iOS runs the keyboard without Full Access: it explains the
+/// missing vibration even when the app cannot be told (the App Group is off-limits too).
+struct FullAccessHint: View {
+    var body: some View {
+        Label("Full Access off · no vibration", systemImage: "lock")
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.leading, 12)
     }
 }
 

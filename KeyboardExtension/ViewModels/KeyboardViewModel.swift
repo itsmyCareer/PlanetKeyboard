@@ -22,6 +22,8 @@ final class KeyboardViewModel: ObservableObject {
     @Published var languageToggle: LanguageToggle?
     /// Korean 단모음: the other reading of a 받침/쌍자음 decision (바꼬 → 박고), tap to switch.
     @Published private(set) var alternative: String?
+    /// The keyboard process runs without "Allow Full Access" (no haptics, no shared settings).
+    @Published var fullAccessMissing = false
 
     struct LanguageToggle: Equatable {
         let baseLabel: String      // 한 or EN

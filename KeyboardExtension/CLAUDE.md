@@ -164,6 +164,9 @@ enum InputResult {
 `InlineComposition` applies `.update` to the document: it tracks only the short composing tail
 (<= 2 chars), rewrites it with a common-prefix diff, and abandons it (never deletes) when
 `selectionDidChange`/`textDidChange` show the document no longer ends with it.
+While typing fast iOS can report the host text late or halfway through a delete + insert edit;
+within 1 s of an edit, a context equal to a state our own recent edits passed through (last 24
+characters) is treated as in sync, so the syllable is not dropped (끈 + ㅎ → 끊, not 끈ㅎ).
 
 ## Keyboard UI -- Design Notes (2026-11-24 rework)
 
@@ -317,6 +320,7 @@ A: The globe key in the bottom row calls `KeyboardViewController.changeLanguage`
 | Date | Action | Details |
 |---|---|---|
 | 2026-04-17 | Created | Initial module documentation from planned architecture. |
+| 2026-11-25 | Fast typing | InlineComposition ignores late / mid-edit host reports that match its own recent edits (끊 came out as 끈ㅎ on device). |
 | 2026-11-25 | 단모음 겹받침 | 쌍자음 after a 받침 that could form a 겹받침 (말씀, 진짜, 할까) and after a third tap (아직까지) decided by word statistics too; hangul_pairs.tsv now 2 009 rows. |
 | 2026-11-25 | Haptics | Generators attached to the keyboard view, live hasFullAccess per tap, app-selectable method (Standard / System vibration), KeyboardStatus diagnostics shown in the app; "Full Access off · no vibration" hint in the empty bar (os_log category "haptics"). |
 | 2026-11-25 | 단모음 / size | Timing-free 쌍자음 (word statistics + “alternative” chip in the bar); iOS-sized keys (45 pt) with per-language Key Size setting. |

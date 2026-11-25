@@ -5,8 +5,10 @@ final class FakeDocument: TextDocumentEditing {
     var text = ""
     /// Some hosts return nil context; tests can simulate that.
     var reportsContext = true
+    /// What the host reports instead of the real text (a late or mid-edit report).
+    var reportedOverride: String?
 
-    var documentContextBeforeInput: String? { reportsContext ? text : nil }
+    var documentContextBeforeInput: String? { reportsContext ? (reportedOverride ?? text) : nil }
     func insertText(_ t: String) { text += t }
     func deleteBackward() { if !text.isEmpty { text.removeLast() } }
 }
@@ -20,6 +22,15 @@ final class HangulHarness {
     private(set) var clock: CFTimeInterval = 100
 
     var text: String { doc.text }
+
+    init() {
+        inline.clock = { [unowned self] in self.clock }
+    }
+
+    /// Lets time pass without a key press.
+    func wait(_ seconds: Double) {
+        clock += seconds
+    }
 
     /// Types every character of `keys`. " " is the space key, "⌫" backspace, "⏎" return.
     /// `gap` is the time between taps (default: slow, no accidental double taps).

@@ -330,6 +330,36 @@ final class HangulEngineTests: XCTestCase {
         XCTAssertEqual(h.text, "간")
     }
 
+    func testLateHostReportKeepsComposition() {
+        // Fast typing: after 끄 → 끈 the host still reports the old text (끄).
+        h.type("ㄱㄱㅡㄴ", gap: 0.08)
+        h.doc.reportedOverride = "끄"
+        h.hostChanged()
+        h.doc.reportedOverride = nil
+        h.type("ㅎ", gap: 0.08)
+        XCTAssertEqual(h.text, "끊")
+    }
+
+    func testMidEditHostReportKeepsComposition() {
+        // The report arrives between our delete (끄 removed) and insert (끈).
+        h.type("ㅈㅓㄴㅎㅘ ㄱㄱㅡㄴ", gap: 0.08)
+        h.doc.reportedOverride = "전화 "
+        h.hostChanged()
+        h.doc.reportedOverride = nil
+        h.type("ㅎㅇㅓㅇㅏㅏ", gap: 0.08)
+        XCTAssertEqual(h.text, "전화 끊어야")
+    }
+
+    func testOldReportAfterAPauseIsACursorMove() {
+        h.type("ㄱㄱㅡㄴ")
+        h.wait(2)
+        h.doc.reportedOverride = "끄"
+        h.hostChanged()
+        h.doc.reportedOverride = nil
+        h.type("ㅎ")
+        XCTAssertEqual(h.text, "끈ㅎ")
+    }
+
     func testHostWithoutContextStillComposes() {
         h.doc.reportsContext = false
         h.type("ㅎㅏㄴㄱㅡㄹ")

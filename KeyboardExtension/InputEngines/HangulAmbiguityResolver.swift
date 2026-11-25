@@ -5,7 +5,7 @@ import Foundation
 /// reading occurs in Korean text (`hangul_pairs.tsv`, built by Tools/build_hangul_pairs.py).
 ///
 /// Lookup order: left syllable + consonant + vowel key → left syllable + consonant (any vowel)
-/// → 쌍자음 (the more common reading for every consonant in the data).
+/// → `fallback` (쌍자음, the more common reading for every consonant in the data).
 final class HangulAmbiguityResolver {
 
     struct Counts: Equatable {
@@ -31,13 +31,15 @@ final class HangulAmbiguityResolver {
     }
 
     /// - Parameters:
-    ///   - left: the syllable before the consonant, without 받침 (바)
+    ///   - left: the syllable before the consonant as it stays with the 쌍자음 reading (바, 말, 직)
     ///   - consonant: the plain consonant tapped twice (ㄱ)
     ///   - vowel: the vowel typed after it (ㅜ; ㅠ / ㅝ count as ㅜ)
-    func decide(left: Character, consonant: Character, vowel: Character) -> HangulEngine.BoundaryDecision {
+    ///   - fallback: the decision when the data has nothing (or a tie) for this syllable
+    func decide(left: Character, consonant: Character, vowel: Character,
+                fallback: HangulEngine.BoundaryDecision = .tenseInitial) -> HangulEngine.BoundaryDecision {
         let key = "\(left)\(consonant)"
         let counts = exact[key + String(Self.vowelKey(vowel))] ?? bySyllable[key]
-        guard let counts, counts.split != counts.tense else { return .tenseInitial }
+        guard let counts, counts.split != counts.tense else { return fallback }
         return counts.split > counts.tense ? .splitFinalPlainInitial : .tenseInitial
     }
 

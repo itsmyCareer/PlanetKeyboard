@@ -49,7 +49,7 @@ KeyboardExtension/
     RimeEngine.swift                   # Chinese Pinyin via librime (C API)
     HangulEngine.swift                 # Hangul jamo → syllable composition
   Haptics/
-    HapticManager.swift                # UIImpactFeedbackGenerator wrapper
+    HapticManager.swift                # Haptics: UIImpactFeedbackGenerator (view-attached) or system vibration (HapticMethod); reports KeyboardStatus
   Theme/
     ThemeManager.swift                 # Reads theme from App Group, provides current theme
     KeyboardTheme.swift                # Theme struct used at runtime in the extension
@@ -213,6 +213,11 @@ enum InputResult {
   `Resources/hangul_pairs.tsv` (left syllable + consonant + first vowel key → counts of 박구-type vs
   바꾸-type words, built by `Tools/build_hangul_pairs.py` from FrequencyWords, CC BY-SA 4.0;
   unknown → 쌍자음): 바꿔, 아빠, 이따 / 먹고, 학교, 박고.
+- The same applies when the left syllable already has a 받침 that could take the consonant
+  (key = the syllable as it stays with the 쌍자음 reading): 겹받침 말 + ㅅㅅ → 말씀 / 진짜 / 할까 vs
+  없습니다 / 읽고 / 앉지, and a third tap 직 + ㄱ → 아직까지 vs 갔습니다 / 닦고 (unknown → 쌍받침 + 초성).
+  Without a vowel the keys stay as typed (맔ㅅ, 짂ㄱ). Check with the top-100k word simulation:
+  1 119 → 101 mistyped words (remaining ones type identically, e.g. 각각 / 가깍).
 - Until that next syllable is finished the left syllable is held in the composition, and the bar
   shows the other reading in quotes (“바꼬” while 박고 is typed); tapping it swaps
   (`HangulEngine.swapAmbiguity`). Backspace walks back: 바꾸 → 바ㄲ → 밖 → 박.
@@ -312,6 +317,8 @@ A: The globe key in the bottom row calls `KeyboardViewController.changeLanguage`
 | Date | Action | Details |
 |---|---|---|
 | 2026-04-17 | Created | Initial module documentation from planned architecture. |
+| 2026-11-25 | 단모음 겹받침 | 쌍자음 after a 받침 that could form a 겹받침 (말씀, 진짜, 할까) and after a third tap (아직까지) decided by word statistics too; hangul_pairs.tsv now 2 009 rows. |
+| 2026-11-25 | Haptics | Generators attached to the keyboard view, live hasFullAccess per tap, app-selectable method (Standard / System vibration), KeyboardStatus diagnostics shown in the app; "Full Access off · no vibration" hint in the empty bar (os_log category "haptics"). |
 | 2026-11-25 | 단모음 / size | Timing-free 쌍자음 (word statistics + “alternative” chip in the bar); iOS-sized keys (45 pt) with per-language Key Size setting. |
 | 2026-11-25 | Languages | Chinese shift key (capitals typed as-is); paired mode: globe 한 ↔ EN, 한/中 toggle in the bar. |
 | 2026-11-24 | librime | PinyinEngine/PinyinDictionary replaced by RimeEngine (librime + rime-ice + octagram); app is GPL-3.0. |

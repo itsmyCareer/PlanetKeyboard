@@ -216,6 +216,64 @@ final class HangulEngineTests: XCTestCase {
         XCTAssertEqual(h.text, "밖 ")
     }
 
+    // MARK: - 받침 that could take the consonant (겹받침 / 쌍받침) + 쌍자음
+
+    func testTenseAfterCompoundCapableFinal() {
+        let cases: [(String, String)] = [
+            ("ㅁㅏㄹㅅㅅㅡㅁ", "말씀"), ("ㅈㅣㄴㅈㅈㅏ", "진짜"), ("ㅎㅏㄹㄱㄱㅏ", "할까"),
+            ("ㅂㅓㄹㅅㅅㅓ", "벌써"), ("ㄱㅡㄹㅅㅅㅔ", "글쎄"), ("ㅇㅗㅣㄴㅈㅈㅗㄱ", "왼쪽"),
+        ]
+        for (keys, expected) in cases {
+            let harness = HangulHarness()
+            harness.type(keys)
+            XCTAssertEqual(harness.text, expected, keys)
+        }
+    }
+
+    func testCompoundFinalStillWinsWhereItIsTheWord() {
+        let cases: [(String, String)] = [
+            ("ㅇㅓㅂㅅㅅㅡㅂㄴㅣㄷㅏ", "없습니다"), ("ㅇㅣㄹㄱㄱㅗ", "읽고"), ("ㅇㅏㄴㅈㅈㅣ", "앉지"),
+        ]
+        for (keys, expected) in cases {
+            let harness = HangulHarness()
+            harness.type(keys)
+            XCTAssertEqual(harness.text, expected, keys)
+        }
+    }
+
+    func testCompoundAmbiguityWithoutVowelKeepsTheKeys() {
+        h.type("ㅁㅏㄹㅅㅅ")
+        XCTAssertEqual(h.text, "맔ㅅ")
+        h.type("⌫")
+        XCTAssertEqual(h.text, "맔")
+        h.type("ㅅㅡ")
+        XCTAssertEqual(h.text, "말쓰")
+        XCTAssertEqual(h.engine.ambiguityAlternative, "맔스")
+        h.swap()
+        XCTAssertEqual(h.text, "맔스")
+    }
+
+    func testThirdTapLetsTheWordDecide() {
+        let cases: [(String, String)] = [
+            ("ㅇㅏㅈㅣㄱㄱㄱㅏㅈㅣ", "아직까지"), ("ㄱㅏㅅㅅㅅㅡㅂㄴㅣㄷㅏ", "갔습니다"),
+            ("ㅎㅐㅅㅅㅅㅡㅂㄴㅣㄷㅏ", "했습니다"), ("ㄷㅏㄱㄱㄱㅗ", "닦고"),
+        ]
+        for (keys, expected) in cases {
+            let harness = HangulHarness()
+            harness.type(keys)
+            XCTAssertEqual(harness.text, expected, keys)
+        }
+    }
+
+    func testThirdTapBackspaceAndConsonant() {
+        h.type("ㅈㅣㄱㄱㄱ")
+        XCTAssertEqual(h.text, "짂ㄱ")
+        h.type("⌫")
+        XCTAssertEqual(h.text, "짂")
+        h.type("ㄷㅏ")
+        XCTAssertEqual(h.text, "짂다")
+    }
+
     func testResolverFallsBackToSyllableThenTense() {
         let resolver = HangulAmbiguityResolver(pairs: "# test\n하ㄱㅗ\t50\t1\n하ㄱㅏ\t5\t1\n")
         XCTAssertEqual(resolver.decide(left: "하", consonant: "ㄱ", vowel: "ㅛ"), .splitFinalPlainInitial)

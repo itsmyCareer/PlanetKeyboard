@@ -9,6 +9,8 @@ import Foundation
 /// - 받침 + same consonant (바 + ㄱㄱ) waits for the next key:
 ///   - a consonant, space or anything else keeps a doubled 받침 when one exists (밖, 있);
 ///   - a vowel asks `HangulAmbiguityResolver` (word statistics): 바꿔 / 박고 / 학교 / 먹고.
+///   The same holds when the syllable already has a 받침 that could take the consonant:
+///   말 + ㅅㅅ → 말씀 / 맔 (없 + ㅅ → 없습니다, 읽고), and a third tap: 직 + ㄱ → 아직까지 / 갔습니다.
 ///   Until that next syllable is finished the other reading can be picked instead
 ///   (`ambiguityAlternative` / `swapAmbiguity()`, shown in the suggestion bar).
 ///
@@ -32,10 +34,21 @@ final class HangulEngine: InputEngine {
     }
 
     /// 바 + ㄱㄱ before the next key: 밖 / 박ㄱ / 바ㄲ.
+    /// With `leftFinal` the left syllable already has a 받침: 말 + ㅅㅅ (맔ㅅ / 말ㅆ),
+    /// or 직 + ㄱ for a third tap (짂ㄱ / 직ㄲ).
     struct BoundaryAmbiguity: Equatable {
         let leftInitial: Character
         let leftMedial: Character
+        /// The 받침 the left syllable keeps when the 쌍자음 reading wins (nil for 바 + ㄱㄱ).
+        var leftFinal: Character? = nil
         let consonant: Character            // the plain consonant tapped twice, e.g. ㄱ
+
+        /// The left syllable's 받침 when the consonant stays with it: ㄱ (박), ㄽ (맔), ㄲ (짂).
+        var splitFinal: Character {
+            guard let leftFinal else { return consonant }
+            if leftFinal == consonant { return HangulJamo.doubled(consonant) ?? consonant }
+            return HangulJamo.combineConsonants(leftFinal, consonant) ?? consonant
+        }
     }
 
     enum BoundaryDecision: Equatable {
@@ -176,6 +189,11 @@ final class HangulEngine: InputEngine {
                 emit("")        // an earlier decision is final now
                 state = .boundaryAmbiguous(BoundaryAmbiguity(leftInitial: initial, leftMedial: medial,
                                                              consonant: char))
+            } else if let split = HangulJamo.splitCompoundFinal(final_), split.move == char,
+                      HangulJamo.isDoubleable(char) {
+                emit("")        // 맔 + ㅅ: 말씀 or 맔 + ㅅ
+                state = .boundaryAmbiguous(BoundaryAmbiguity(leftInitial: initial, leftMedial: medial,
+                                                             leftFinal: split.stay, consonant: char))
             } else if let compound = HangulJamo.combineConsonants(final_, char) {
                 state = .composingCVC(initial: initial, medial: medial, final_: compound)
             } else {
@@ -183,9 +201,16 @@ final class HangulEngine: InputEngine {
                 state = .initial(char)
             }
 
-        case .boundaryAmbiguous(let ambiguity):
-            settleAmbiguityWithoutVowel(ambiguity)
-            handleConsonant(char)
+        case .boundaryAmbiguous(let a):
+            if char == a.consonant, a.leftFinal == nil,
+               let doubled = HangulJamo.doubled(char), HangulJamo.finalIndex(of: doubled) != nil {
+                // Third tap (지 + ㄱㄱㄱ): 짂 + ㄱ or 직 + ㄲ, decided by the next key.
+                state = .boundaryAmbiguous(BoundaryAmbiguity(leftInitial: a.leftInitial, leftMedial: a.leftMedial,
+                                                             leftFinal: char, consonant: char))
+            } else {
+                settleAmbiguityWithoutVowel(a)
+                handleConsonant(char)
+            }
         }
     }
 
@@ -233,8 +258,11 @@ final class HangulEngine: InputEngine {
             }
 
         case .boundaryAmbiguous(let a):
-            let left = syllable(a.leftInitial, a.leftMedial, nil).first ?? " "
-            let h = Held(ambiguity: a, decision: resolver.decide(left: left, consonant: a.consonant, vowel: char))
+            let left = syllable(a.leftInitial, a.leftMedial, a.leftFinal).first ?? " "
+            // A third tap used to always mean 쌍받침 + 초성 (갔습니다); keep that when the data is silent.
+            let fallback: BoundaryDecision = a.leftFinal == a.consonant ? .splitFinalPlainInitial : .tenseInitial
+            let h = Held(ambiguity: a, decision: resolver.decide(left: left, consonant: a.consonant, vowel: char,
+                                                                 fallback: fallback))
             held = h
             state = .composingCV(initial: initial(for: h), medial: char)
         }
@@ -267,7 +295,12 @@ final class HangulEngine: InputEngine {
                 state = .composingCV(initial: initial, medial: medial)
             }
         case .boundaryAmbiguous(let a):
-            state = .composingCVC(initial: a.leftInitial, medial: a.leftMedial, final_: a.consonant)
+            if a.leftFinal == a.consonant {      // 지 + ㄱㄱㄱ ⌫ → 지 + ㄱㄱ
+                state = .boundaryAmbiguous(BoundaryAmbiguity(leftInitial: a.leftInitial, leftMedial: a.leftMedial,
+                                                             consonant: a.consonant))
+            } else {                             // 바ㄱㄱ ⌫ 박, 말ㅅㅅ ⌫ 맔
+                state = .composingCVC(initial: a.leftInitial, medial: a.leftMedial, final_: a.splitFinal)
+            }
         }
         lastKey = nil
         return output()
@@ -276,14 +309,21 @@ final class HangulEngine: InputEngine {
     // MARK: - Ambiguity
 
     /// No vowel followed the double tap: ㄲ/ㅆ become a doubled 받침 (밖, 있),
-    /// ㄷ/ㅂ/ㅈ (no doubled 받침 exists) split into 받침 + new 초성.
+    /// otherwise the consonant goes to the 받침 and starts a new syllable (압ㅂ, 맔ㅅ, 짂ㄱ).
     private func settleAmbiguityWithoutVowel(_ a: BoundaryAmbiguity) {
-        if let doubled = HangulJamo.doubled(a.consonant), HangulJamo.finalIndex(of: doubled) != nil {
+        if let doubled = doubledFinal(a) {
             state = .composingCVC(initial: a.leftInitial, medial: a.leftMedial, final_: doubled)
         } else {
-            emit(syllable(a.leftInitial, a.leftMedial, a.consonant))
+            emit(syllable(a.leftInitial, a.leftMedial, a.splitFinal))
             state = .initial(a.consonant)
         }
+    }
+
+    /// 바 + ㄱㄱ / ㅅㅅ with nothing after it is one syllable with a doubled 받침 (밖, 있).
+    private func doubledFinal(_ a: BoundaryAmbiguity) -> Character? {
+        guard a.leftFinal == nil, let doubled = HangulJamo.doubled(a.consonant),
+              HangulJamo.finalIndex(of: doubled) != nil else { return nil }
+        return doubled
     }
 
     private func initial(for h: Held) -> Character {
@@ -291,10 +331,10 @@ final class HangulEngine: InputEngine {
                                     : h.ambiguity.consonant
     }
 
-    /// The held left syllable: 박 (받침 + 초성) or 바 (쌍자음).
+    /// The held left syllable: 박 / 맔 / 짂 (받침 + 초성) or 바 / 말 / 직 (쌍자음).
     private func text(of h: Held) -> String {
         let a = h.ambiguity
-        return syllable(a.leftInitial, a.leftMedial, h.decision == .splitFinalPlainInitial ? a.consonant : nil)
+        return syllable(a.leftInitial, a.leftMedial, h.decision == .splitFinalPlainInitial ? a.splitFinal : a.leftFinal)
     }
 
     private var heldText: String { held.map(text(of:)) ?? "" }
@@ -357,11 +397,11 @@ final class HangulEngine: InputEngine {
         case .composingCVC(let i, let m, let f):
             return syllable(i, m, f)
         case .boundaryAmbiguous(let a):
-            // Show what we'd produce if no vowel follows: 밖 / 있 (one syllable) or 압ㅂ.
-            if let doubled = HangulJamo.doubled(a.consonant), HangulJamo.finalIndex(of: doubled) != nil {
+            // Show what we'd produce if no vowel follows: 밖 / 있 (one syllable) or 압ㅂ / 맔ㅅ / 짂ㄱ.
+            if let doubled = doubledFinal(a) {
                 return syllable(a.leftInitial, a.leftMedial, doubled)
             }
-            return syllable(a.leftInitial, a.leftMedial, a.consonant) + String(a.consonant)
+            return syllable(a.leftInitial, a.leftMedial, a.splitFinal) + String(a.consonant)
         }
     }
 }
